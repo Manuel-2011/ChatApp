@@ -12,7 +12,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.17.1"
+    "bad-words": "^3.0.4",
+    "express": "^4.17.1",
+    "socket.io": "^3.1.0"
   },
   "devDependencies": {
     "env-cmd": "^10.1.0"
