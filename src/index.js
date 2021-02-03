@@ -4,6 +4,7 @@ const http = require('http')
 const socketio = require('socket.io')
 const Filter = require('bad-words')
 const {generateMessage, generateLocationMessage} = require('./utils/messages')
+const { addUser, removeUser, getUser, getUsersInRoom } = require('./utils/users')
 
 const app = express()
 const server = http.createServer(app)
@@ -19,11 +20,23 @@ let count = 0
 io.on('connection', (socket) => {
   
 
-  socket.on('join', ({ username, room }) => {
-    socket.join(room) //create the chat room
+  socket.on('join', (options, callback) => {
+    const { error, user} = addUser({ id: socket.id, ...options })
+    
+    if (error) {
+      return callback(error)
+    }
 
-    socket.emit('newMessage', generateMessage('Welcome to te chat-app!'))
-    socket.broadcast.to(room).emit('newMessage', generateMessage(`${username} has joined!`))
+    socket.join(user.room) //create the chat room
+
+    socket.emit('newMessage', generateMessage('ChatApp', 'Welcome to te chat-app!'))
+    socket.broadcast.to(user.room).emit('newMessage', generateMessage('ChatApp', `${user.username} has joined!`))
+    io.to(user.room).emit('roomData', {
+      room: user.room,
+      users: getUsersInRoom(user.room)
+    })
+
+    callback()
   })
 
   socket.on('sendMessage', (message, callback) => {
@@ -33,16 +46,29 @@ io.on('connection', (socket) => {
       return callback('Profanity is not allowed!')
     }
 
-    io.emit('newMessage', generateMessage(message))
+    const user = getUser(socket.id)
+
+
+    io.to(user.room).emit('newMessage', generateMessage(user.username, message))
     callback()
   })
 
   socket.on('disconnect', () => {
-    io.emit('newMessage', generateMessage('A user has left'))
+    const user = removeUser(socket.id)
+
+    if (user) {
+      io.to(user.room).emit('newMessage', generateMessage('ChatApp', `${user.username} has left!`))
+      io.to(user.room).emit('roomData', {
+        room: user.room,
+        users: getUsersInRoom(user.room)
+      })
+    }
   })
 
   socket.on('sendlocation', (location, callback) => {
-    io.emit('locationMessage', generateLocationMessage(`https://google.com/maps?q=${location.latitude},${location.longitude}`))
+    const user = getUser(socket.id)
+
+    io.to(user.room).emit('locationMessage', generateLocationMessage(user.username, `https://google.com/maps?q=${location.latitude},${location.longitude}`))
     return callback('Location shared!')
   })
 });
